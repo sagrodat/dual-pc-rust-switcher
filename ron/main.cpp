@@ -6,14 +6,47 @@
 #include "utils.h"
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lparam) {
-    if (msg == WM_DESTROY) {
-        PostQuitMessage(0);
-        return 0;
+    switch(msg) {
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            
+            // Set transparent background
+            SetBkMode(hdc, TRANSPARENT);
+            
+            // Set text color (white)
+            SetTextColor(hdc, RGB(255, 0, 0));
+            
+            // Set font
+            HFONT hFont = CreateFont(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY, DEFAULT_PITCH, "Arial");
+            SelectObject(hdc, hFont);
+            
+            // Get window size
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            
+            // Draw text centered
+            DrawText(hdc, WINDOW_TEXT, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            
+            DeleteObject(hFont);
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
     }
     return DefWindowProc(hwnd, msg, wParam, lparam);
 }
 
 int main() {
+    
+    // Set console visibility
+    HWND console = GetConsoleWindow();
+    ShowWindow(console, CONSOLE_VISIBILITY);
+
     std::string hostname = GetHostname();
     bool isDirector = (hostname == PC1_HOSTNAME);
     bool isClient = (hostname == PC2_HOSTNAME);
@@ -29,7 +62,7 @@ int main() {
     wc.lpfnWndProc = WndProc;
     wc.hInstance = GetModuleHandle(NULL);
     wc.lpszClassName = "OverlayWindow";
-    wc.hbrBackground = CreateSolidBrush(RGB(255,0,0));
+    //wc.hbrBackground = CreateSolidBrush(RGB(255,0,0));
     RegisterClass(&wc);
 
     HWND hwnd = NULL;
@@ -47,7 +80,7 @@ int main() {
 
         int width = mi.rcMonitor.right - mi.rcMonitor.left;
         int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
-        int window_width = 50;
+        int window_width = 250;
         int window_height = 50;
 
         hwnd = CreateWindowEx(
@@ -61,7 +94,7 @@ int main() {
             window_height,
             NULL, NULL, wc.hInstance, NULL
         );
-        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+        SetLayeredWindowAttributes(hwnd, 0, WINDOW_OPACITY, LWA_ALPHA);  // Use config opacity
         ShowWindow(hwnd, SW_HIDE);
     }
 
