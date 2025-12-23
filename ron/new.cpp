@@ -76,6 +76,7 @@ int main() {
     // Auto-detect which PC we're on
     std::string hostname = GetHostname();
     bool isDirector = (hostname == PC1_HOSTNAME);
+    bool isClient = (hostname == PC2_HOSTNAME);
     std::cout << "Running on: " << hostname << (isDirector ? " (Director)" : " (Client)") << std::endl;
 
     while (true) 
@@ -83,90 +84,99 @@ int main() {
         // side button pressed
         if (GetAsyncKeyState(VK_END) & 0x0001) 
         {
-            std::cout << "Window is now " << isToggled << std::endl;
-            isToggled = !isToggled;
-            if(isToggled)
+            if(isDirector) 
             {
-                // Save current focused window
-                previousWindow = GetForegroundWindow();
+                // DIRECTOR: Toggle window + switch
+                std::cout << "Director: Window is now " << isToggled << std::endl;
+                isToggled = !isToggled;
+                
+                if(isToggled)
+                {
+                    // Save current focused window
+                    previousWindow = GetForegroundWindow();
 
-                // On which monitor is the mouse?
-                POINT pt;
-                GetCursorPos(&pt); 
-                HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+                    // On which monitor is the mouse?
+                    POINT pt;
+                    GetCursorPos(&pt); 
+                    HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
 
-                // Get that monitors info
-                MONITORINFO mi = {};
-                mi.cbSize = sizeof(MONITORINFO);
-                GetMonitorInfo(hMonitor, &mi);
+                    // Get that monitors info
+                    MONITORINFO mi = {};
+                    mi.cbSize = sizeof(MONITORINFO);
+                    GetMonitorInfo(hMonitor, &mi);
 
-                // Get Monitor dimensions
-                int width = mi.rcMonitor.right - mi.rcMonitor.left;
-                int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
+                    // Get Monitor dimensions
+                    int width = mi.rcMonitor.right - mi.rcMonitor.left;
+                    int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
 
-                // Window size
-                int window_width = 50; // px
-                int window_height = 50; //px
+                    // Window size
+                    int window_width = 50; // px
+                    int window_height = 50; //px
 
-                // Create topmost window 
-                hwnd = CreateWindowEx(
-                    WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_APPWINDOW,  // Always on top, supports transparency
-                    "OverlayWindow",                 // Class name
-                    "Overlay",                       // Window title
-                    WS_POPUP | WS_VISIBLE,                        // Popup style (no borders)
-                    width-window_width, // x position
-                    height-window_height, // y position
-                    window_width,  // x size
-                    window_height, // y size
-                    NULL, NULL, wc.hInstance, NULL
-                );
-                SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA); // Full opacity
+                    // Create topmost window 
+                    hwnd = CreateWindowEx(
+                        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_APPWINDOW,
+                        "OverlayWindow",
+                        "Overlay",
+                        WS_POPUP | WS_VISIBLE,
+                        width-window_width,
+                        height-window_height,
+                        window_width,
+                        window_height,
+                        NULL, NULL, wc.hInstance, NULL
+                    );
+                    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
 
-                Sleep(50);  // Brief wait for system to finish rendering
+                    Sleep(50);
+                    ForceFocus(hwnd);
+                    std::cout << "Window drawn! Focus stolen!" << std::endl;
 
-                ForceFocus(hwnd);
-                std::cout << "Window drawn! Focust Stolen!" << std::endl;
-
-                // Switch based on which PC we're on
-                if(isDirector) {
-                    // PC1: Switch to client
+                    // Switch to client
                     std::string cmd = "-switchControlToClient:" + PC2_IP;
                     ShellExecuteA(NULL, "open", 
                         "C:\\Program Files\\Input Director\\IDCmd.exe",
                         cmd.c_str(),
                         NULL, SW_HIDE);
                     std::cout << "Switched to client" << std::endl;
-                } else {
-                    // PC2: Switch back to director
-                    ShellExecuteA(NULL, "open", 
-                        "C:\\Program Files\\Input Director\\IDCmd.exe",
-                        "-switchControlToLocal",
-                        NULL, SW_HIDE);
-                    std::cout << "Switched to director" << std::endl;
+                }
+                else // Toggle off
+                {
+                    if(hwnd)
+                    {
+                        DestroyWindow(hwnd);
+                        hwnd = NULL;
+
+                        // Switch back to local
+                        ShellExecuteA(NULL, "open", 
+                            "C:\\Program Files\\Input Director\\IDCmd.exe",
+                            "-switchControlToLocal",
+                            NULL, SW_HIDE);
+
+                        // Restore focus
+                        if(previousWindow && IsWindow(previousWindow)) 
+                        {
+                            ForceFocus(previousWindow);
+                        }
+                        previousWindow = NULL;
+                        std::cout << "Switched back to local" << std::endl;
+                    }
                 }
             }
-            else // if not Toggled
+            else if (isClient) 
             {
-                if(hwnd) // if the window existed - destroy it
-                {
-                    DestroyWindow(hwnd);
-                    hwnd = NULL;
-
-                    // Switch back to local
-                    ShellExecuteA(NULL, "open", 
-                        "C:\\Program Files\\Input Director\\IDCmd.exe",
-                        "-switchControlToLocal",
-                        NULL, SW_HIDE);
-
-                    // Restore focus to previous window
-                    if(previousWindow && IsWindow(previousWindow)) 
-                    {
-                        ForceFocus(previousWindow);
-                    }
-                    previousWindow = NULL;
-                }
+                // CLIENT: Just switch back to director (no toggle, no window)
+                ShellExecuteA(NULL, "open", 
+                    "C:\\Program Files\\Input Director\\IDCmd.exe",
+                    "-switchControlToLocal",
+                    NULL, SW_HIDE);
+                std::cout << "Client: Switched back to director" << std::endl;
+            }
+            else
+            {
+                std::cout<<"UNKNOWN MACHINE"<<std::endl;
             }
         }
+        
         // Process window messages
         MSG msg;
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) 
@@ -175,7 +185,7 @@ int main() {
             DispatchMessage(&msg);
         }
 
-        Sleep(10);  // Reduce CPU usage
+        Sleep(10);
     }
 
     return 0;
