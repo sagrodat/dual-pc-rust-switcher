@@ -4,6 +4,7 @@
 
 const std::string PC1_HOSTNAME = "DESKTOP-V45G59E";  // Director PC
 const std::string PC2_HOSTNAME = "DESKTOP-VKLG84S";  // Client PC
+const std::string PC1_IP = "192.168.0.46"; // Director IP
 const std::string PC2_IP = "192.168.0.66"; // Client IP
 
 // Window procedure - handles window messages
@@ -165,11 +166,12 @@ int main() {
             else if (isClient) 
             {
                 // CLIENT: Just switch back to director (no toggle, no window)
+                std::string cmd = "-switchControlToClient:" + PC1_IP;
                 ShellExecuteA(NULL, "open", 
                     "C:\\Program Files\\Input Director\\IDCmd.exe",
-                    "-switchControlToLocal",
+                    cmd.c_str(),
                     NULL, SW_HIDE);
-                std::cout << "Client: Switched back to director" << std::endl;
+                std::cout << "Switched to director" << std::endl;
             }
             else
             {
