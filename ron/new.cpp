@@ -42,6 +42,21 @@ void SendKeyPress(WORD vkCode) {
     SendInput(2, inputs, sizeof(INPUT));
 }
 
+bool HasLocalControl() {
+    // Query Input Director status
+    FILE* pipe = _popen("\"C:\\Program Files\\Input Director\\IDCmd.exe\" -queryFocusLocation", "r");
+    if (!pipe) return false;
+    
+    char buffer[128];
+    std::string result = "";
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        result += buffer;
+    }
+    _pclose(pipe);
+    
+    return (result.find("LOCAL") != std::string::npos);
+}
+
 // Helper function to force focus
 void ForceFocus(HWND hwnd) {
     // Attach to foreground thread
@@ -168,6 +183,22 @@ int main() {
             else
             {
                 std::cout<<"UNKNOWN MACHINE"<<std::endl;
+            }
+        }
+
+        //Cleanup window if access returned to director
+        if(isDirector && hwnd && isToggled) {
+            if(HasLocalControl()) {
+                // Control came back - close window
+                DestroyWindow(hwnd);
+                hwnd = NULL;
+                isToggled = false;
+                
+                if(previousWindow && IsWindow(previousWindow)) {
+                    ForceFocus(previousWindow);
+                }
+                previousWindow = NULL;
+                std::cout << "Control returned - window closed!" << std::endl;
             }
         }
         
