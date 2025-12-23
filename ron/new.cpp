@@ -157,9 +157,13 @@ int main() {
             }
             else if (isClient) 
             {
-                // CLIENT: Just switch back to director using InputDirector keybind
-                // from input director settings on host
-                SendKeyPress(VK_PRIOR);
+                //Switch to director (client on 2nd pc)
+                std::string cmd = "-switchControlToClient:" + PC1_IP;
+                ShellExecuteA(NULL, "open", 
+                    "C:\\Program Files\\Input Director\\IDCmd.exe",
+                    cmd.c_str(),
+                    NULL, SW_HIDE);
+                std::cout << "Switched to director" << std::endl;
             }
             else
             {
