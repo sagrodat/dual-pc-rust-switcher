@@ -1,11 +1,14 @@
 #include <Windows.h>
 #include <iostream>
 #include <string>
+#include <winsock2.h>
+#pragma comment(lib, "ws2_32.lib")
 
 const std::string PC1_HOSTNAME = "DESKTOP-V45G59E";  // Director PC
 const std::string PC2_HOSTNAME = "DESKTOP-VKLG84S";  // Client PC
 const std::string PC1_IP = "192.168.0.46"; // Director IP
 const std::string PC2_IP = "192.168.0.66"; // Client IP
+const int SIGNAL_PORT = 9999;
 
 // Window procedure - handles window messages
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lparam) {
@@ -15,6 +18,56 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lparam) {
     }
     return DefWindowProc(hwnd, msg, wParam, lparam);
 }
+
+// Setup UDP listener (Director only)
+SOCKET SetupListener(int port) {
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2,2), &wsa);
+    
+    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    
+    sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(port);
+    
+    bind(s, (sockaddr*)&server, sizeof(server));
+    
+    // Make non-blocking
+    u_long mode = 1;
+    ioctlsocket(s, FIONBIO, &mode);
+    
+    return s;
+}
+
+// Check for signal (Director only)
+bool ReceivedSignal(SOCKET s) {
+    char buffer[16];
+    sockaddr_in from;
+    int fromLen = sizeof(from);
+    
+    int result = recvfrom(s, buffer, sizeof(buffer), 0, (sockaddr*)&from, &fromLen);
+    return (result > 0);
+}
+
+// Send signal to director (Client only)
+void SendSignal(const char* ip, int port) {
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2,2), &wsa);
+    
+    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    
+    sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = inet_addr(ip);
+    server.sin_port = htons(port);
+    
+    const char* msg = "BACK";
+    sendto(s, msg, strlen(msg), 0, (sockaddr*)&server, sizeof(server));
+    closesocket(s);
+    WSACleanup();
+}
+
 
 // Get current PC hostname
 std::string GetHostname() {
@@ -42,20 +95,6 @@ void SendKeyPress(WORD vkCode) {
     SendInput(2, inputs, sizeof(INPUT));
 }
 
-bool HasLocalControl() {
-    // Query Input Director status
-    FILE* pipe = _popen("\"C:\\Program Files\\Input Director\\IDCmd.exe\" -queryFocusLocation", "r");
-    if (!pipe) return false;
-    
-    char buffer[128];
-    std::string result = "";
-    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-        result += buffer;
-    }
-    _pclose(pipe);
-    
-    return (result.find("LOCAL") != std::string::npos);
-}
 
 // Helper function to force focus
 void ForceFocus(HWND hwnd) {
@@ -77,102 +116,103 @@ void ForceFocus(HWND hwnd) {
 }
 
 int main() {
-    // Register window class - defines window properties
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = WndProc;                           // Function to handle messages
-    wc.hInstance = GetModuleHandle(NULL);               // Current program instance
-    wc.lpszClassName = "OverlayWindow";                 // Window class name
-    wc.hbrBackground = CreateSolidBrush(RGB(255,0,0)); // White background
-    RegisterClass(&wc);
-
-    HWND hwnd = NULL;      // Window handle
-    HWND previousWindow = NULL; 
-    bool isToggled = false; // Track visibility state
-
     // Auto-detect which PC we're on
     std::string hostname = GetHostname();
     bool isDirector = (hostname == PC1_HOSTNAME);
     bool isClient = (hostname == PC2_HOSTNAME);
     std::cout << "Running on: " << hostname << (isDirector ? " (Director)" : " (Client)") << std::endl;
 
+    // Setup UDP listener (Director only)
+    SOCKET listener = INVALID_SOCKET;
+    if(isDirector) {
+        listener = SetupListener(SIGNAL_PORT);
+        std::cout << "UDP listener started on port " << SIGNAL_PORT << std::endl;
+    }
+
+    // Register window class
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.lpszClassName = "OverlayWindow";
+    wc.hbrBackground = CreateSolidBrush(RGB(255,0,0));
+    RegisterClass(&wc);
+
+    HWND hwnd = NULL;
+    HWND previousWindow = NULL; 
+    bool isToggled = false;
+
+    // Create window (Director only)
+    if(isDirector) {
+        POINT pt;
+        GetCursorPos(&pt); 
+        HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+
+        MONITORINFO mi = {};
+        mi.cbSize = sizeof(MONITORINFO);
+        GetMonitorInfo(hMonitor, &mi);
+
+        int width = mi.rcMonitor.right - mi.rcMonitor.left;
+        int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
+        int window_width = 50;
+        int window_height = 50;
+
+        hwnd = CreateWindowEx(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_APPWINDOW,
+            "OverlayWindow",
+            "Overlay",
+            WS_POPUP,
+            width-window_width,
+            height-window_height,
+            window_width,
+            window_height,
+            NULL, NULL, wc.hInstance, NULL
+        );
+        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+        ShowWindow(hwnd, SW_HIDE);
+    }
+
     while (true) 
     {
-        // side button pressed
+        // Check for signal from client (Director only)
+        if(isDirector && listener != INVALID_SOCKET && hwnd && isToggled) {
+            if(ReceivedSignal(listener)) {
+                ShowWindow(hwnd, SW_HIDE);
+                if(previousWindow && IsWindow(previousWindow)) {
+                    ForceFocus(previousWindow);
+                }
+                isToggled = false;
+                previousWindow = NULL;
+                std::cout << "Signal received - window hidden!" << std::endl;
+            }
+        }
+
+        // Key press detection
         if (GetAsyncKeyState(VK_END) & 0x0001) 
         {
             if(isDirector) 
             {
-                // DIRECTOR: Toggle window + switch
-                std::cout << "Director: Window is now " << isToggled << std::endl;
+                std::cout << "Director: Toggling" << std::endl;
                 isToggled = !isToggled;
                
-                // Save current focused window
                 previousWindow = GetForegroundWindow();
-
-                // On which monitor is the mouse?
-                POINT pt;
-                GetCursorPos(&pt); 
-                HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
-
-                // Get that monitors info
-                MONITORINFO mi = {};
-                mi.cbSize = sizeof(MONITORINFO);
-                GetMonitorInfo(hMonitor, &mi);
-
-                // Get Monitor dimensions
-                int width = mi.rcMonitor.right - mi.rcMonitor.left;
-                int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
-
-                // Window size
-                int window_width = 50; // px
-                int window_height = 50; //px
-
-                // Create topmost window 
-                hwnd = CreateWindowEx(
-                    WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_APPWINDOW,
-                    "OverlayWindow",
-                    "Overlay",
-                    WS_POPUP | WS_VISIBLE,
-                    width-window_width,
-                    height-window_height,
-                    window_width,
-                    window_height,
-                    NULL, NULL, wc.hInstance, NULL
-                );
-                SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-
-                Sleep(50);
+        
+                ShowWindow(hwnd, SW_SHOW);
                 ForceFocus(hwnd);
-                std::cout << "Window drawn! Focus stolen!" << std::endl;
+                std::cout << "Window shown! Focus stolen!" << std::endl;
 
-                // Switch to client
                 std::string cmd = "-switchControlToClient:" + PC2_IP;
                 ShellExecuteA(NULL, "open", 
                     "C:\\Program Files\\Input Director\\IDCmd.exe",
                     cmd.c_str(),
                     NULL, SW_HIDE);
                 std::cout << "Switched to client" << std::endl;
-                
-                // else // Toggle off
-                // {
-                //     if(hwnd)
-                //     {
-                //         DestroyWindow(hwnd);
-                //         hwnd = NULL;
-                        
-                //         // Restore focus
-                //         if(previousWindow && IsWindow(previousWindow)) 
-                //         {
-                //             ForceFocus(previousWindow);
-                //         }
-                //         previousWindow = NULL;
-                //         std::cout << "Switched back to local" << std::endl;
-                //     }
-                // }
             }
             else if (isClient) 
             {
-                //Switch to director (client on 2nd pc)
+                // Send signal to director BEFORE switching
+                SendSignal(PC1_IP.c_str(), SIGNAL_PORT);
+                std::cout << "Signal sent to director" << std::endl;
+                
                 std::string cmd = "-switchControlToClient:" + PC1_IP;
                 ShellExecuteA(NULL, "open", 
                     "C:\\Program Files\\Input Director\\IDCmd.exe",
@@ -182,21 +222,7 @@ int main() {
             }
             else
             {
-                std::cout<<"UNKNOWN MACHINE"<<std::endl;
-            }
-        }
-
-        //Cleanup window if access returned to director
-        if(isDirector && hwnd && isToggled) {
-            if(HasLocalControl()) {
-                // Control came back - minimize window and restore focus
-                ShowWindow(hwnd, SW_MINIMIZE);
-                
-                if(previousWindow && IsWindow(previousWindow)) {
-                    ForceFocus(previousWindow);
-                }
-                previousWindow = NULL;
-                std::cout << "Control returned - window closed!" << std::endl;
+                std::cout << "UNKNOWN MACHINE" << std::endl;
             }
         }
         
