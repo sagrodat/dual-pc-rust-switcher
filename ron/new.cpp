@@ -90,88 +90,76 @@ int main() {
                 // DIRECTOR: Toggle window + switch
                 std::cout << "Director: Window is now " << isToggled << std::endl;
                 isToggled = !isToggled;
-                
-                if(isToggled)
-                {
-                    // Save current focused window
-                    previousWindow = GetForegroundWindow();
+               
+                // Save current focused window
+                previousWindow = GetForegroundWindow();
 
-                    // On which monitor is the mouse?
-                    POINT pt;
-                    GetCursorPos(&pt); 
-                    HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+                // On which monitor is the mouse?
+                POINT pt;
+                GetCursorPos(&pt); 
+                HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
 
-                    // Get that monitors info
-                    MONITORINFO mi = {};
-                    mi.cbSize = sizeof(MONITORINFO);
-                    GetMonitorInfo(hMonitor, &mi);
+                // Get that monitors info
+                MONITORINFO mi = {};
+                mi.cbSize = sizeof(MONITORINFO);
+                GetMonitorInfo(hMonitor, &mi);
 
-                    // Get Monitor dimensions
-                    int width = mi.rcMonitor.right - mi.rcMonitor.left;
-                    int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
+                // Get Monitor dimensions
+                int width = mi.rcMonitor.right - mi.rcMonitor.left;
+                int height = mi.rcMonitor.bottom - mi.rcMonitor.top;
 
-                    // Window size
-                    int window_width = 50; // px
-                    int window_height = 50; //px
+                // Window size
+                int window_width = 50; // px
+                int window_height = 50; //px
 
-                    // Create topmost window 
-                    hwnd = CreateWindowEx(
-                        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_APPWINDOW,
-                        "OverlayWindow",
-                        "Overlay",
-                        WS_POPUP | WS_VISIBLE,
-                        width-window_width,
-                        height-window_height,
-                        window_width,
-                        window_height,
-                        NULL, NULL, wc.hInstance, NULL
-                    );
-                    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+                // Create topmost window 
+                hwnd = CreateWindowEx(
+                    WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_APPWINDOW,
+                    "OverlayWindow",
+                    "Overlay",
+                    WS_POPUP | WS_VISIBLE,
+                    width-window_width,
+                    height-window_height,
+                    window_width,
+                    window_height,
+                    NULL, NULL, wc.hInstance, NULL
+                );
+                SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
 
-                    Sleep(50);
-                    ForceFocus(hwnd);
-                    std::cout << "Window drawn! Focus stolen!" << std::endl;
+                Sleep(50);
+                ForceFocus(hwnd);
+                std::cout << "Window drawn! Focus stolen!" << std::endl;
 
-                    // Switch to client
-                    std::string cmd = "-switchControlToClient:" + PC2_IP;
-                    ShellExecuteA(NULL, "open", 
-                        "C:\\Program Files\\Input Director\\IDCmd.exe",
-                        cmd.c_str(),
-                        NULL, SW_HIDE);
-                    std::cout << "Switched to client" << std::endl;
-                }
-                else // Toggle off
-                {
-                    if(hwnd)
-                    {
-                        DestroyWindow(hwnd);
-                        hwnd = NULL;
-
-                        // Switch back to local
-                        ShellExecuteA(NULL, "open", 
-                            "C:\\Program Files\\Input Director\\IDCmd.exe",
-                            "-switchControlToLocal",
-                            NULL, SW_HIDE);
-
-                        // Restore focus
-                        if(previousWindow && IsWindow(previousWindow)) 
-                        {
-                            ForceFocus(previousWindow);
-                        }
-                        previousWindow = NULL;
-                        std::cout << "Switched back to local" << std::endl;
-                    }
-                }
-            }
-            else if (isClient) 
-            {
-                // CLIENT: Just switch back to director (no toggle, no window)
-                std::string cmd = "-switchControlToClient:" + PC1_IP;
+                // Switch to client
+                std::string cmd = "-switchControlToClient:" + PC2_IP;
                 ShellExecuteA(NULL, "open", 
                     "C:\\Program Files\\Input Director\\IDCmd.exe",
                     cmd.c_str(),
                     NULL, SW_HIDE);
-                std::cout << "Switched to director" << std::endl;
+                std::cout << "Switched to client" << std::endl;
+                
+                // else // Toggle off
+                // {
+                //     if(hwnd)
+                //     {
+                //         DestroyWindow(hwnd);
+                //         hwnd = NULL;
+                        
+                //         // Restore focus
+                //         if(previousWindow && IsWindow(previousWindow)) 
+                //         {
+                //             ForceFocus(previousWindow);
+                //         }
+                //         previousWindow = NULL;
+                //         std::cout << "Switched back to local" << std::endl;
+                //     }
+                // }
+            }
+            else if (isClient) 
+            {
+                // CLIENT: Just switch back to director using InputDirector keybind
+                // from input director settings on host
+                SendKeyPress(VK_PRIOR);
             }
             else
             {
