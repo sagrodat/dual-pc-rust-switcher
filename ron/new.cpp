@@ -189,10 +189,8 @@ int main() {
         //Cleanup window if access returned to director
         if(isDirector && hwnd && isToggled) {
             if(HasLocalControl()) {
-                // Control came back - close window
-                DestroyWindow(hwnd);
-                hwnd = NULL;
-                isToggled = false;
+                // Control came back - minimize window and restore focus
+                ShowWindow(hwnd, SW_MINIMIZE);
                 
                 if(previousWindow && IsWindow(previousWindow)) {
                     ForceFocus(previousWindow);
