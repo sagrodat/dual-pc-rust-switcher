@@ -52,7 +52,7 @@ const int SIGNAL_PORT = 9999;
 const int CONSOLE_VISIBILITY = SW_SHOW;  // SW_HIDE or SW_SHOW
 
 const int WINDOW_OPACITY = 255;  // 0-255, 0=invisible, 255=opaque
-const char* WINDOW_TEXT = "USING RON";  // Text to display
+const char* WINDOW_TEXT = "USING 2nd PC";  // Text to display
 
 #endif
 ```
