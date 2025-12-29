@@ -8,7 +8,7 @@ Many software KVMs don't handle mouse movement properly in full-screen games. In
 
 ## Demonstration
 
-![Demo](output.gif)
+![Demo](showcase.gif)
 
 As you can see in the demonstration:
 
