@@ -112,7 +112,7 @@ int main() {
             }
         }
 
-        if (GetAsyncKeyState(VK_END) & 0x0001) 
+        if (GetAsyncKeyState(HOTKEY) & 0x0001) 
         {
             if(isDirector) 
             {
@@ -127,7 +127,7 @@ int main() {
 
                 std::string cmd = "-switchControlToClient:" + PC2_IP;
                 ShellExecuteA(NULL, "open", 
-                    "C:\\Program Files\\Input Director\\IDCmd.exe",
+                    INPUT_DIRECTOR_PATH,
                     cmd.c_str(),
                     NULL, SW_HIDE);
                 std::cout << "Switched to client" << std::endl;
@@ -139,7 +139,7 @@ int main() {
                 
                 std::string cmd = "-switchControlToClient:" + PC1_IP;
                 ShellExecuteA(NULL, "open", 
-                    "C:\\Program Files\\Input Director\\IDCmd.exe",
+                    INPUT_DIRECTOR_PATH,
                     cmd.c_str(),
                     NULL, SW_HIDE);
                 std::cout << "Switched to director" << std::endl;

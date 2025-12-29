@@ -2,6 +2,4 @@
 # Ten plik .gitignore został utworzony automatycznie przez Microsoft(R) Visual Studio.
 ################################################################################
 
-/get_virtual_key_code
-/moving_test_py
-/OpenCVProject
+/raw_videos

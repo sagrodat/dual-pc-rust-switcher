@@ -10,6 +10,8 @@ const std::string PC2_HOSTNAME = "DESKTOP-VKLG84S";  // Client PC
 const std::string PC1_IP = "192.168.0.46";
 const std::string PC2_IP = "192.168.0.66";
 const int SIGNAL_PORT = 9999;
+const int HOTKEY = 0x23;
+const char * INPUT_DIRECTOR_PATH = "C:\\Program Files\\Input Director\\IDCmd.exe";
 
 // Show/hide console window
 const int CONSOLE_VISIBILITY = SW_SHOW;  // SW_HIDE or SW_SHOW

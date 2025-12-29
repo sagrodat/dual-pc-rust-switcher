@@ -19,6 +19,16 @@ This program creates a transparent overlay window and manages focus switching be
 - Both PCs on same local network
 - Rust game instances running on both PCs
 
+## Input Director Setup
+
+**CRITICAL: Both systems must be configured as Directors with mutual client connections:**
+
+1. Install Input Director on both PCs
+2. On PC1: Configure as Director and add PC2 as a Client
+3. On PC2: Configure as Director and add PC1 as a Client
+4. **The hotkey configured in Input Director must NOT overlap with any hotkeys in Rust or this software**
+5. Recommended: Use a different hotkey in Input Director than the END key used by this program
+
 ## Important: Rust Settings
 
 **Set target FPS in Rust background to prevent lag:**
@@ -62,7 +72,7 @@ const char* WINDOW_TEXT = "USING 2nd PC";  // Text to display
 Requires Windows SDK and Winsock2 library.
 
 ```bash
-g++ main.cpp network.cpp utils.cpp -o rust_switcher.exe -lws2_32 -lgdi32 -mwindows
+g++ main.cpp network.cpp utils.cpp -o program.exe -lws2_32 -lgdi32 -mwindows
 ```
 
 ## Usage
