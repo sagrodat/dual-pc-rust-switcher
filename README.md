@@ -35,7 +35,7 @@ When the hotkey is pressed:
 ## Requirements
 
 - Windows OS (both PCs)
-- [Input Director](https://www.inputdirector.com/) installed on both PCs (version 2.3+ required)
+- [Input Director](https://www.inputdirector.com/) installed and running on both PCs (version 2.3+ required)
 - Both PCs on same local network
 - Rust game instances running on both PCs
 
