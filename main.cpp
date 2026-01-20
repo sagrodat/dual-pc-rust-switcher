@@ -41,6 +41,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lparam) {
     return DefWindowProc(hwnd, msg, wParam, lparam);
 }
 
+// Function to check if client is alive (Blocking for ~200ms)
+bool CheckClientAvailable(SOCKET listener, const std::string& targetIP) {
+    // 1. Send PING
+    SendPacket(targetIP.c_str(), SIGNAL_PORT, "PING");
+    
+    // 2. Wait briefly for ACK (20 attempts * 10ms = 200ms timeout)
+    for(int i = 0; i < 20; i++) {
+        std::string response = ReceivePacket(listener);
+        if(response == "ACK") {
+            return true;
+        }
+        Sleep(10);
+    }
+    return false;
+}
+
 int main() {
     
     // Set console visibility
@@ -52,17 +68,13 @@ int main() {
     bool isClient = (hostname == PC2_HOSTNAME);
     std::cout << "Running on: " << hostname << (isDirector ? " (Director)" : " (Client)") << std::endl;
 
-    SOCKET listener = INVALID_SOCKET;
-    if(isDirector) {
-        listener = SetupListener(SIGNAL_PORT);
-        std::cout << "UDP listener started on port " << SIGNAL_PORT << std::endl;
-    }
+    SOCKET listener = SetupListener(SIGNAL_PORT);
+    std::cout << "UDP listener active on port " << SIGNAL_PORT << std::endl;
 
     WNDCLASS wc = {};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = GetModuleHandle(NULL);
     wc.lpszClassName = "OverlayWindow";
-    //wc.hbrBackground = CreateSolidBrush(RGB(255,0,0));
     RegisterClass(&wc);
 
     HWND hwnd = NULL;
@@ -94,67 +106,89 @@ int main() {
             window_height,
             NULL, NULL, wc.hInstance, NULL
         );
-        SetLayeredWindowAttributes(hwnd, 0, WINDOW_OPACITY, LWA_ALPHA);  // Use config opacity
+        SetLayeredWindowAttributes(hwnd, 0, WINDOW_OPACITY, LWA_ALPHA); 
         ShowWindow(hwnd, SW_HIDE);
     }
 
+    // main loop
+
     while (true) 
     {
-        if(isDirector && listener != INVALID_SOCKET && hwnd && isToggled) {
-            if(ReceivedSignal(listener)) {
-                ShowWindow(hwnd, SW_HIDE);
-                if(previousWindow && IsWindow(previousWindow)) {
-                    ForceFocus(previousWindow);
+
+        // ---------------------------------------------------------
+        // 1. READ NETWORK SIGNALS
+        // ---------------------------------------------------------
+
+        std::string msg = ReceivePacket(listener);
+        if (!msg.empty()) {
+            // DIRECTOR LOGIC
+            if(isDirector) {
+                if(msg == "BACK" && isToggled) {
+                    ShowWindow(hwnd, SW_HIDE);
+                    if(previousWindow && IsWindow(previousWindow)) ForceFocus(previousWindow);
+                    isToggled = false;
+                    previousWindow = NULL;
+                    std::cout << "Client returned control." << std::endl;
                 }
-                isToggled = false;
-                previousWindow = NULL;
-                std::cout << "Signal received - window hidden!" << std::endl;
+            }
+            // CLIENT LOGIC
+            else if(isClient) {
+                if(msg == "PING") {
+                    // Director is asking if we are here. Reply immediately!
+                    SendPacket(PC1_IP.c_str(), SIGNAL_PORT, "ACK");
+                    std::cout << "Responded to Handshake PING" << std::endl;
+                }
             }
         }
+
+        // ---------------------------------------------------------
+        // 2. HANDLE HOTKEYS
+        // ---------------------------------------------------------
 
         if (GetAsyncKeyState(HOTKEY) & 0x0001) 
         {
             if(isDirector) 
             {
-                std::cout << "Director: Toggling" << std::endl;
-                isToggled = !isToggled;
-               
-                previousWindow = GetForegroundWindow();
-        
-                ShowWindow(hwnd, SW_SHOW);
-                ForceFocus(hwnd);
-                std::cout << "Window shown! Focus stolen!" << std::endl;
+                if (!isToggled) {
+                    std::cout << "Handshaking..." << std::endl;
+                    if (CheckClientAvailable(listener, PC2_IP)) {
+                        std::cout << "Client Confirmed! Switching..." << std::endl;
+                        
+                        isToggled = true;
+                        previousWindow = GetForegroundWindow();
+                        ShowWindow(hwnd, SW_SHOW);
+                        ForceFocus(hwnd);
 
-                std::string cmd = "-switchControlToClient:" + PC2_IP;
-                ShellExecuteA(NULL, "open", 
-                    INPUT_DIRECTOR_PATH,
-                    cmd.c_str(),
-                    NULL, SW_HIDE);
-                std::cout << "Switched to client" << std::endl;
+                        std::string cmd = "-switchControlToClient:" + PC2_IP;
+                        ShellExecuteA(NULL, "open", INPUT_DIRECTOR_PATH, cmd.c_str(), NULL, SW_HIDE);
+                    } else {
+                        std::cout << "FAILED: Client not running or unreachable." << std::endl;
+                        // Optional: Play a beep so you know it failed
+                        Beep(500, 200); 
+                    }
+                } else {
+                    // If we are already toggled and press hotkey, maybe force switch back?
+                    // Usually the client sends "BACK", but this is a failsafe.
+                    // Should not be possible since when toggled hotkey would be registered on CLIENT PC
+                    // This means we are on DIRECTOR PC
+                    isToggled = false; // fix state
+                    ShowWindow(hwnd, SW_HIDE); // hide window
+                }
             }
             else if (isClient) 
             {
-                SendSignal(PC1_IP.c_str(), SIGNAL_PORT);
-                std::cout << "Signal sent to director" << std::endl;
+                // Client just sends the BACK command
+                SendPacket(PC1_IP.c_str(), SIGNAL_PORT, "BACK");
                 
                 std::string cmd = "-switchControlToClient:" + PC1_IP;
-                ShellExecuteA(NULL, "open", 
-                    INPUT_DIRECTOR_PATH,
-                    cmd.c_str(),
-                    NULL, SW_HIDE);
-                std::cout << "Switched to director" << std::endl;
-            }
-            else
-            {
-                std::cout << "UNKNOWN MACHINE" << std::endl;
+                ShellExecuteA(NULL, "open", INPUT_DIRECTOR_PATH, cmd.c_str(), NULL, SW_HIDE);
             }
         }
-        
-        MSG msg;
-        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) 
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+
+        MSG message;
+        while (PeekMessage(&message, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&message);
+            DispatchMessage(&message);
         }
 
         Sleep(10);

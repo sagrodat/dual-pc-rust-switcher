@@ -1,6 +1,6 @@
-// network.cpp
 #include "network.h"
 #include <winsock2.h>
+#include <iostream>
 
 SOCKET SetupListener(int port) {
     WSADATA wsa;
@@ -13,24 +13,35 @@ SOCKET SetupListener(int port) {
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(port);
     
+    // Bind the socket
     bind(s, (sockaddr*)&server, sizeof(server));
     
+    // Set to non-blocking mode
     u_long mode = 1;
     ioctlsocket(s, FIONBIO, &mode);
     
     return s;
 }
 
-bool ReceivedSignal(SOCKET s) {
-    char buffer[16];
+std::string ReceivePacket(SOCKET s) {
+    char buffer[1024]; // Buffer for incoming data
     sockaddr_in from;
     int fromLen = sizeof(from);
     
-    int result = recvfrom(s, buffer, sizeof(buffer), 0, (sockaddr*)&from, &fromLen);
-    return (result > 0);
+    // Try to receive data
+    int result = recvfrom(s, buffer, sizeof(buffer) - 1, 0, (sockaddr*)&from, &fromLen);
+    
+    if (result > 0) {
+        buffer[result] = '\0'; // Null-terminate the string
+        return std::string(buffer);
+    }
+    
+    return ""; // Return empty if no data
 }
 
-void SendSignal(const char* ip, int port) {
+void SendPacket(const char* ip, int port, const std::string& message) {
+    // Note: In a production app you might want to init WSA once in main, 
+    // but this is fine for this scale.
     WSADATA wsa;
     WSAStartup(MAKEWORD(2,2), &wsa);
     
@@ -41,8 +52,7 @@ void SendSignal(const char* ip, int port) {
     server.sin_addr.s_addr = inet_addr(ip);
     server.sin_port = htons(port);
     
-    const char* msg = "BACK";
-    sendto(s, msg, strlen(msg), 0, (sockaddr*)&server, sizeof(server));
+    sendto(s, message.c_str(), message.length(), 0, (sockaddr*)&server, sizeof(server));
+    
     closesocket(s);
-    WSACleanup();
 }

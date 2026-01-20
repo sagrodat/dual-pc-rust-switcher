@@ -89,7 +89,7 @@ const char* WINDOW_TEXT = "USING 2nd PC";  // Text to display
 Requires Windows SDK and Winsock2 library.
 
 ```bash
-g++ main.cpp network.cpp utils.cpp -o program.exe -static -lws2_32 -lgdi32 -mwindows -static-libgcc -static-libstdc++
+g++ main.cpp network.cpp utils.cpp -o program.exe -static -lws2_32 -lgdi32 -static-libgcc -static-libstdc++
 ```
 
 ## Usage
